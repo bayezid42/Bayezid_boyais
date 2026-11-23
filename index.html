@@ -36,7 +36,7 @@ nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid 
 nav button{flex:1;background:transparent;color:var(--mut);border-radius:0;padding:10px 4px;font-size:12px;font-weight:600}
 nav button span{display:block;font-size:20px}
 nav button.on{color:var(--pri)}
-.tabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0;padding-bottom:4px}
+.tabs{position:relative;display:flex;gap:6px;overflow-x:auto;margin:10px 0;padding-bottom:4px}
 .tabs button{background:#fff;color:var(--mut);border:1px solid var(--bd);padding:8px 14px;white-space:nowrap;font-size:14px}
 .tabs button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
@@ -56,6 +56,30 @@ a{color:var(--pri)}
 .brand{position:relative;display:flex;justify-content:center;padding:8px 0 14px}
 .brand img{width:100%;max-width:320px;height:auto;display:block}
 .gear{position:absolute;right:0;top:0;background:transparent;color:var(--mut);padding:6px 8px;font-size:18px;border-radius:10px}
+
+/* ---------- Animasyonlar ---------- */
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes fadeout{to{opacity:0}}
+@keyframes sheetin{from{transform:translateY(100%)}to{transform:none}}
+@keyframes sheetout{to{transform:translateY(100%)}}
+@keyframes pop{0%{transform:scale(.5);opacity:0}65%{transform:scale(1.1);opacity:1}100%{transform:scale(1)}}
+@keyframes bounce{0%{transform:translateY(6px) scale(.8)}55%{transform:translateY(-4px) scale(1.15)}100%{transform:none}}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
+.enter>*:not(nav):not(.fab){animation:up .42s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*50ms)}
+.enter .fab{animation:pop .5s .25s cubic-bezier(.2,.9,.3,1.2) both}
+.enter nav button.on span{animation:bounce .5s .1s cubic-bezier(.2,.9,.3,1.2) both}
+#modal.on{animation:fade .22s ease both}
+#modal.on .sheet{animation:sheetin .34s cubic-bezier(.2,.9,.25,1) both}
+#modal.out{animation:fadeout .2s ease forwards}
+#modal.out .sheet{animation:sheetout .2s ease-in forwards}
+#toast{animation:toastin .25s ease both}
+.photos img{animation:fade .45s ease both}
+button,.card[onclick],.stat[onclick]{transition:transform .12s ease,background-color .2s ease,box-shadow .2s ease}
+button:active{transform:scale(.95)}
+.card[onclick]:active,.stat[onclick]:active{transform:scale(.982)}
+.tabs{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
@@ -95,7 +119,9 @@ function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';cl
 
 const S={jobs:[],workers:[],logs:[],expenses:[],payments:[],wpay:[],extras:[]};
 const V={tab:'jobs',jobId:null,jtab:'ozet',filter:'Hepsi',period:'all',pkind:'Önce'};
-async function load(){for(const s of STORES.filter(x=>x!=='photos'))S[s]=await all(s)}
+async function load(){
+  for(const s of STORES.filter(x=>x!=='photos'))S[s]=await all(s);
+  for(const j of S.jobs){if('areaPlan' in j){if(!j.area)j.area=j.areaPlan;delete j.areaPlan;await put('jobs',j)}}}
 
 const CATS=['Yemek','Mazot','Malzeme','Ulaşım','Alet / Ekipman','Diğer'];
 const TYPES=['Boya','Tadilat','Alçıpan','Seramik / Fayans','Sıva','Elektrik / Tesisat','Diğer'];
@@ -106,7 +132,7 @@ function calc(j){
   const logs=S.logs.filter(l=>l.jobId===j.id),ex=S.expenses.filter(e=>e.jobId===j.id),pay=S.payments.filter(p=>p.jobId===j.id),xs=S.extras.filter(e=>e.jobId===j.id);
   const labor=sum(logs,l=>l.hours*l.rate),hours=sum(logs,l=>l.hours),exp=sum(ex,e=>e.amount),paid=sum(pay,p=>p.amount);
   const mj=j.priceType==='Metrekare';
-  const areaUsed=j.area||(mj?j.areaPlan:0)||0;
+  const areaUsed=mj?(j.area||0):0;
   const base=mj?areaUsed*(j.unitPrice||0):(j.price||0);
   const extra=sum(xs,e=>e.amount),extraArea=sum(xs,e=>e.area);
   const areaTotal=areaUsed+extraArea;
@@ -116,8 +142,9 @@ function calc(j){
 }
 
 /* ---------- Modal / Form ---------- */
-function openModal(html){$('#sheet').innerHTML=html;$('#modal').classList.add('on')}
-function closeModal(){$('#modal').classList.remove('on');$('#sheet').innerHTML=''}
+let mTok=0;
+function openModal(html){mTok++;const m=$('#modal');m.classList.remove('out');$('#sheet').innerHTML=html;m.classList.add('on')}
+function closeModal(){const t=++mTok,m=$('#modal');if(!m.classList.contains('on'))return;m.classList.add('out');setTimeout(()=>{if(t!==mTok)return;m.classList.remove('on','out');$('#sheet').innerHTML=''},200)}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
 
 function openForm(title,fields,initial,onSave,after){
@@ -145,9 +172,24 @@ function render(){
   else body={jobs:jobsView,workers:workersView,report:reportView,backup:backupView}[V.tab]();
   const nav=[['jobs','🛠️','İşler'],['workers','👷','İşçiler'],['report','📊','Rapor']]
     .map(([k,i,l])=>`<button class="${V.tab===k&&!V.jobId?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('');
+  $('#app').classList.remove('enter');
   $('#app').innerHTML=(V.jobId?'':`<div class="brand"><img src="${LOGO}" alt="Bayezid"><button class="gear" onclick="go('backup')" aria-label="Yedek">⚙️</button></div>`)+body+`<nav>${nav}</nav>`;
+  const key=V.tab+'|'+V.jobId+'|'+V.jtab;
+  if(key!==render.k&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    const app=$('#app');[...app.children].forEach((el,i)=>el.style.setProperty('--i',Math.min(i,9)));
+    void app.offsetWidth;app.classList.add('enter');countUp(app)}
+  render.k=key;
+  document.querySelectorAll('.tabs').forEach(t=>{const a=t.querySelector('button.on');if(a)t.scrollLeft=a.offsetLeft-t.offsetLeft-(t.clientWidth-a.offsetWidth)/2});
   if(V.jobId&&V.jtab==='foto')loadPhotos();
 }
+function countUp(root){
+  root.querySelectorAll('.stat .v,.big').forEach(el=>{
+    const t=el.textContent.trim();if(!/^-?[\d.]+(,\d+)?\s?₺$/.test(t))return;
+    const target=parseFloat(t.replace(/\./g,'').replace(',','.').replace('₺',''));if(!isFinite(target)||target===0)return;
+    const t0=performance.now(),D=700;
+    const step=now=>{const p=Math.min(1,(now-t0)/D),e=1-Math.pow(1-p,3);
+      if(p<1){el.textContent=fmt(target*e);requestAnimationFrame(step)}else el.textContent=t};
+    requestAnimationFrame(step)})}
 function go(t){V.tab=t;V.jobId=null;render();scrollTo(0,0)}
 function openJob(id){V.jobId=id;V.jtab='ozet';render();scrollTo(0,0)}
 function setJT(t){V.jtab=t;render()}
@@ -186,8 +228,7 @@ function editJob(id){
     {k:'priceType',l:'Anlaşma şekli',t:'select',opts:['Kabala','Metrekare'],def:'Kabala',hint:'Kabala = tek fiyata anlaşma. Metrekare = m² başı fiyat.'},
     {k:'price',l:'Kabala anlaşma tutarı (₺)',t:'num'},
     {k:'unitPrice',l:'m² birim fiyatı (₺ / m²)',t:'num'},
-    {k:'areaPlan',l:'Tahmini / anlaşılan m²',t:'num',hint:'Başta tahmini ölçüyü yaz.'},
-    {k:'area',l:'Yapılan gerçek m²',t:'num',hint:'İş bitince ölçüyü yaz. Metrekare işlerde hesap bununla yapılır, yazılmazsa tahmini m² kullanılır.'},
+    {k:'area',l:'Yapılan m²',t:'num',hint:'İşte yapılan toplam metrekare. Fiyat bununla hesaplanır.'},
     {k:'startDate',l:'Başlangıç tarihi',t:'date',def:today()},
     {k:'endDate',l:'Bitiş tarihi (bitmediyse boş bırak)',t:'date'},
     {k:'status',l:'Durum',t:'select',opts:STATS},
@@ -198,7 +239,7 @@ function editJob(id){
     const tog=()=>{const m=sel.value==='Metrekare';
       frm.querySelectorAll('.fld').forEach(d=>{const k=d.dataset.k;
         if(k==='price')d.style.display=m?'none':'';
-        if(k==='unitPrice'||k==='areaPlan')d.style.display=m?'':'none'})};
+        if(k==='unitPrice'||k==='area')d.style.display=m?'':'none'})};
     sel.onchange=tog;tog()});
 }
 async function delJob(id){
@@ -218,8 +259,7 @@ function jobDetail(){
     <div class="card"><div class="mut">İş bedeli</div>
       <div class="row sp" style="padding:5px 0"><span>${j.priceType==='Metrekare'?`Ana iş (${c.areaUsed} m² × ${fmt(j.unitPrice)})`:'Ana iş (kabala)'}</span><b>${fmt(c.base)}</b></div>
       ${c.nExtra?`<div class="row sp" style="padding:5px 0"><span>Ek işler (${c.nExtra})</span><b>${fmt(c.extra)}</b></div>`:''}
-      <div class="row sp" style="padding:7px 0 0;border-top:1px solid var(--bd)"><b>Toplam</b><b>${fmt(c.price)}</b></div>
-      ${j.priceType==='Metrekare'&&!j.area&&j.areaPlan?'<div class="mut" style="margin-top:6px">Gerçek m² girilmediği için tahmini m² kullanıldı.</div>':''}</div>
+      <div class="row sp" style="padding:7px 0 0;border-top:1px solid var(--bd)"><b>Toplam</b><b>${fmt(c.price)}</b></div></div>
     <div class="grid">
       <div class="stat"><div class="l">Toplam iş bedeli</div><div class="v">${fmt(c.price)}</div></div>
       <div class="stat"><div class="l">Tahsil edilen</div><div class="v ok">${fmt(c.paid)}</div></div>
