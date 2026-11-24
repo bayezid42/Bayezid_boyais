@@ -128,9 +128,7 @@ input[type=checkbox]{width:22px;height:22px;flex:none;accent-color:#7a0000;paddi
 .nosel,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,select{-webkit-user-select:text;user-select:text}
 img{-webkit-touch-callout:none;-webkit-user-drag:none}
-.pd-rep table{font-size:9.5pt}
-.pd-rep th,.pd-rep td{padding:5px 5px}
-.pd-rep .pd-tot table{font-size:10pt}
+.pd-job{break-inside:avoid}
 </style>
 </head>
 <body>
@@ -292,7 +290,7 @@ function jobsView(){
       <div class="row sp" style="margin-top:10px"><div><div class="mut">Anlaşma</div><b>${fmt(c.price)}</b></div>
       <div><div class="mut">Kalan alacak</div><b class="${c.left>0?'warn':'ok'}">${fmt(c.left)}</b></div>
       <div><div class="mut">Kar</div><b class="${sign(c.profit)}">${fmt(c.profit)}</b></div></div></div>`}).join('');
-  return`${backupBanner()}<h1>İşlerim</h1>${debtCards()}
+  return`<h1>İşlerim</h1>${debtCards()}
   <div class="tabs">${fl.map(f=>`<button class="${V.filter===f?'on':''}" onclick="V.filter='${f}';render()">${f}</button>`).join('')}</div>
   ${cards||'<div class="empty">Henüz iş yok.<br>Sağ alttaki <b>+ Yeni İş</b> ile başla.</div>'}
   <button class="fab" onclick="editJob()">+ Yeni İş</button>`}
@@ -689,30 +687,34 @@ function makeClientReport(){
   const ids=[...document.querySelectorAll('.rj:checked')].map(x=>x.value);
   if(!ids.length){toast('En az bir iş seç');return}
   const js=clientJobs($('#rp_c').value).filter(j=>ids.includes(j.id)),pay=$('#rp_pay').checked;
-  closeModal();setTimeout(()=>printHTML(clientReportHTML(js,pay),fileName(js[js.length-1].client,'İş Raporu',fd(today()))),350)}
+  closeModal();setTimeout(()=>printHTML(clientReportHTML(js,pay),fileName(clientName(js),'İş Raporu',fd(today()))),350)}
+const clientName=js=>(clientList().find(c=>norm(c.name)===norm(js[0].client))||{}).name||js[js.length-1].client;
 function clientReportHTML(js,showPay){
   const f=getFirm(),t=today(),cs=js.map(j=>({j,c:calc(j)}));
-  const T={price:sum(cs,x=>x.c.price),paid:sum(cs,x=>x.c.paid),area:sum(cs,x=>x.j.priceType==='Metrekare'?x.c.areaTotal:0)},due=T.price-T.paid;
+  const T={price:sum(cs,x=>x.c.price),paid:sum(cs,x=>x.c.paid),area:sum(cs,x=>x.c.areaTotal)},due=T.price-T.paid;
   const rv=[...js].reverse(),ph=rv.find(j=>j.phone),ad=rv.find(j=>j.address);
   const starts=js.map(j=>j.startDate).filter(Boolean).sort(),ends=js.map(j=>j.endDate).filter(Boolean).sort();
   const from=starts[0],to=js.some(j=>j.status==='Devam ediyor')?t:(ends[ends.length-1]||t);
   const no='BYZ-R-'+t.replace(/-/g,'')+'-'+String(js[0].id).slice(-3).toUpperCase();
-  const sub=x=>`<div style="color:#6b7385;font-size:8.5pt">${x}</div>`;
-  const rows=cs.map(({j,c})=>{const mj=j.priceType==='Metrekare';
-    return`<tr><td>${esc(j.name)}${j.type?sub(esc(j.type)):''}${c.nExtra?sub('Ana iş '+fmt(c.base)+' + ek iş '+fmt(c.extra)):''}</td>
-      <td>${fd(j.startDate)}${j.endDate?sub('Bitiş: '+fd(j.endDate)):''}</td><td>${j.status==='Bitti'?'Tamamlandı':esc(j.status)}</td>
-      <td class="r">${mj?c.areaTotal+' m²':'Kabala'}</td><td class="r">${fmt(c.price)}</td><td class="r">${fmt(c.paid)}</td><td class="r"><b>${fmt(c.left)}</b></td></tr>`}).join('');
+  const sub=x=>`<div style="color:#6b7385;font-size:9pt">${x}</div>`;
+  const blocks=cs.map(({j,c},i)=>{const mj=j.priceType==='Metrekare';
+    const xs=c.xs.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const rows=[`<tr><td>${esc(j.name)}${sub(mj?'Metrekare anlaşması':'Kabala anlaşma')}</td><td class="r">${mj?c.areaUsed+' m²':'1'}</td><td class="r">${mj?fmt(j.unitPrice):'—'}</td><td class="r">${fmt(c.base)}</td></tr>`,
+      ...xs.map(e=>`<tr><td>Ek iş: ${esc(e.title)}${e.note?sub(esc(e.note)):''}</td><td class="r">${e.area?e.area+' m²':'1'}</td><td class="r">${e.area&&e.unit?fmt(e.unit):'—'}</td><td class="r">${fmt(e.amount)}</td></tr>`)].join('');
+    const meta=[esc(j.type||''),j.startDate?fd(j.startDate)+(j.endDate?' – '+fd(j.endDate):''):'',j.status==='Bitti'?'Tamamlandı':esc(j.status),
+      showPay?'Ödenen '+fmt(c.paid)+' · Kalan '+fmt(c.left):''].filter(Boolean).join(' · ');
+    return`<div class="pd-job"><h3>${js.length>1?(i+1)+'. ':''}${esc(j.name)}</h3>${sub(meta)}
+      <table style="margin-top:4px"><tr><th>Açıklama</th><th class="r">Miktar</th><th class="r">Birim fiyat</th><th class="r">Tutar</th></tr>${rows}
+      <tr><td colspan="3" class="r"><b>İş toplamı</b></td><td class="r"><b>${fmt(c.price)}</b></td></tr></table></div>`}).join('');
   const pays=cs.flatMap(({j,c})=>c.pay.map(p=>({...p,job:j.name}))).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  return`<div class="pd pd-rep">
+  return`<div class="pd">
   ${pdfHead('İŞ RAPORU','Rapor No: '+no,'Düzenleme tarihi: '+fd(t))}
   <div class="pd-cols">
-    <section><h3>Müşteri</h3><dl><dt>Ad / Firma</dt><dd>${esc(js[js.length-1].client)}</dd>${ph?`<dt>Telefon</dt><dd>${esc(fmtPhone(ph.phone))}</dd>`:''}${ad?`<dt>Adres</dt><dd>${esc(ad.address)}</dd>`:''}</dl></section>
+    <section><h3>Müşteri</h3><dl><dt>Ad / Firma</dt><dd>${esc(clientName(js))}</dd>${ph?`<dt>Telefon</dt><dd>${esc(fmtPhone(ph.phone))}</dd>`:''}${ad?`<dt>Adres</dt><dd>${esc(ad.address)}</dd>`:''}</dl></section>
     <section><h3>Rapor Bilgileri</h3><dl><dt>İş sayısı</dt><dd>${js.length}</dd>${from?`<dt>Dönem</dt><dd>${fd(from)} – ${fd(to)}</dd>`:''}${T.area?`<dt>Toplam alan</dt><dd>${T.area} m²</dd>`:''}</dl></section>
   </div>
-  <h3>İşler</h3>
-  <table><tr><th>İş</th><th>Tarih</th><th>Durum</th><th class="r">Miktar</th><th class="r">Bedel</th><th class="r">Ödenen</th><th class="r">Kalan</th></tr>${rows}
-    <tr style="font-weight:700"><td colspan="4" style="border-top:2px solid #7a0000">TOPLAM</td><td class="r" style="border-top:2px solid #7a0000">${fmt(T.price)}</td><td class="r" style="border-top:2px solid #7a0000">${fmt(T.paid)}</td><td class="r" style="border-top:2px solid #7a0000">${fmt(due)}</td></tr></table>
-  ${showPay&&pays.length?`<h3>Ödemeler</h3><table><tr><th>Tarih</th><th>İş</th><th>Açıklama</th><th class="r">Tutar</th></tr>${pays.map(p=>`<tr><td>${fd(p.date)}</td><td>${esc(p.job)}</td><td>${esc(p.note||'Ödeme')}</td><td class="r">${fmt(p.amount)}</td></tr>`).join('')}</table>`:''}
+  ${blocks}
+  ${showPay?`<h3>Ödemeler</h3><table><tr><th>Tarih</th><th>İş</th><th>Açıklama</th><th class="r">Tutar</th></tr>${pays.map(p=>`<tr><td>${fd(p.date)}</td><td>${esc(p.job)}</td><td>${esc(p.note||'Ödeme')}</td><td class="r">${fmt(p.amount)}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#6b7385">Henüz ödeme alınmadı.</td></tr>'}</table>`:''}
   <div class="pd-tot"><table>
     <tr><td>Toplam iş bedeli</td><td class="r"><b>${fmt(T.price)}</b></td></tr>
     <tr><td>Alınan ödeme</td><td class="r"><b>${fmt(T.paid)}</b></td></tr>
