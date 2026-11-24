@@ -599,7 +599,10 @@ function getFirm(){
     return{...FIRM_DEF,...JSON.parse(localStorage.getItem('firm')||'{}')}
   }catch(_){return{...FIRM_DEF}}}
 let PDFURLS=[];
-function printHTML(html){
+const fileName=(...p)=>p.filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+window.addEventListener('afterprint',()=>{if(printHTML.t0){document.title=printHTML.t0;printHTML.t0=null}});
+function printHTML(html,name){
+  if(name){if(!printHTML.t0)printHTML.t0=document.title;document.title=name}
   document.querySelectorAll('#printDoc').forEach(e=>e.remove());
   const d=document.createElement('div');d.id='printDoc';d.innerHTML=html;document.body.appendChild(d);
   const imgs=[...d.querySelectorAll('img')];
@@ -627,7 +630,7 @@ async function makeCustomerForm(id){
       .map(p=>{const u=URL.createObjectURL(p.blob);PDFURLS.push(u);return{u,kind:p.kind}})}
   closeModal();
   const html=customerFormHTML(j,o,f,ph);
-  setTimeout(()=>printHTML(html),350)}
+  setTimeout(()=>printHTML(html,fileName(j.client,j.name,'İş Bilgi Formu',fd(today()))),350)}
 function customerFormHTML(j,o,f,ph){
   const c=calc(j),mj=j.priceType==='Metrekare';
   const xs=c.xs.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
@@ -659,7 +662,7 @@ function printReport(){
   const tmp=document.createElement('div');tmp.innerHTML=reportView();
   tmp.querySelectorAll('.tabs,button,h1').forEach(e=>e.remove());
   const lbl={all:'Tüm zamanlar',year:'Bu yıl',month:'Bu ay'}[V.period];
-  printHTML(`<div class="pd">${pdfHead('İŞ RAPORU',lbl,'Tarih: '+fd(today()))}${tmp.innerHTML}<div class="pd-foot">İç kullanım içindir, müşteriye verilmez.</div></div>`)}
+  printHTML(`<div class="pd">${pdfHead('İŞ RAPORU',lbl,'Tarih: '+fd(today()))}${tmp.innerHTML}<div class="pd-foot">İç kullanım içindir, müşteriye verilmez.</div></div>`,fileName(getFirm().name,'İç Rapor',lbl,fd(today())))}
 
 /* ---------- Müşteri raporu (PDF) ---------- */
 const clientJobs=key=>S.jobs.filter(j=>norm(j.client)===key&&j.status!=='İptal').sort((a,b)=>(a.startDate||a.created||'').localeCompare(b.startDate||b.created||''));
@@ -686,7 +689,7 @@ function makeClientReport(){
   const ids=[...document.querySelectorAll('.rj:checked')].map(x=>x.value);
   if(!ids.length){toast('En az bir iş seç');return}
   const js=clientJobs($('#rp_c').value).filter(j=>ids.includes(j.id)),pay=$('#rp_pay').checked;
-  closeModal();setTimeout(()=>printHTML(clientReportHTML(js,pay)),350)}
+  closeModal();setTimeout(()=>printHTML(clientReportHTML(js,pay),fileName(js[js.length-1].client,'İş Raporu',fd(today()))),350)}
 function clientReportHTML(js,showPay){
   const f=getFirm(),t=today(),cs=js.map(j=>({j,c:calc(j)}));
   const T={price:sum(cs,x=>x.c.price),paid:sum(cs,x=>x.c.paid),area:sum(cs,x=>x.j.priceType==='Metrekare'?x.c.areaTotal:0)},due=T.price-T.paid;
