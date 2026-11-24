@@ -80,6 +80,47 @@ button:active{transform:scale(.95)}
 .card[onclick]:active,.stat[onclick]:active{transform:scale(.982)}
 .tabs{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ---------- Yazdırma / PDF ---------- */
+input[type=checkbox]{width:22px;height:22px;flex:none;accent-color:#7a0000;padding:0}
+.chk{display:flex;align-items:center;gap:10px;color:var(--tx);font-size:16px;margin:12px 0}
+#printDoc{display:none}
+.pd{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#161b26}
+.pd-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px}
+.pd-logo{width:62mm;height:auto;display:block}
+.pd-title{text-align:right;font-size:9.5pt;color:#6b7385}
+.pd-title h1{font-size:17pt;letter-spacing:.07em;color:#7a0000;margin:0 0 4px}
+.pd-bar{height:3px;background:linear-gradient(90deg,#7a0000,#b84a4a,#7a0000);border-radius:2px;margin:2px 0 14px}
+.pd-cols{display:grid;grid-template-columns:1fr 1fr;gap:10mm}
+.pd h3{font-size:9.5pt;letter-spacing:.09em;text-transform:uppercase;color:#7a0000;border-bottom:1px solid #e3caca;padding-bottom:3px;margin:12px 0 6px}
+.pd dl{display:grid;grid-template-columns:30mm 1fr;gap:5px 8px;margin:0;font-size:10pt}
+.pd dt{color:#6b7385}.pd dd{margin:0;font-weight:600}
+.pd table{width:100%;border-collapse:collapse;font-size:10pt}
+.pd th{background:#f6e6e6;color:#7a0000;font-size:8.5pt;letter-spacing:.04em;text-transform:uppercase;text-align:left;padding:6px 8px}
+.pd td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
+.pd .r{text-align:right;white-space:nowrap}
+.pd-tot{display:flex;justify-content:flex-end;margin-top:12px;break-inside:avoid}
+.pd-tot table{width:86mm}
+.pd-tot td{padding:5px 8px}
+.pd-due td{background:#7a0000;color:#fff;font-weight:700;font-size:12pt;border:0}
+.pd-ok td{background:#e3f6ea;color:#0d7a3c;font-weight:700;font-size:12pt;border:0}
+.pd-ph{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
+.pd-ph figure{margin:0;break-inside:avoid}
+.pd-ph img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:2mm;border:1px solid #ddd;display:block}
+.pd-ph figcaption{font-size:8pt;color:#6b7385;text-align:center;margin-top:1mm}
+.pd-note{white-space:pre-wrap;font-size:10pt;background:#faf6f6;border-radius:2mm;padding:3mm}
+.pd-sign{display:grid;grid-template-columns:1fr 1fr;gap:22mm;margin-top:11mm;break-inside:avoid}
+.pd-sign div{border-top:1px solid #444;text-align:center;padding-top:4px;font-size:9pt;color:#555}
+.pd-foot{margin-top:6mm;padding-top:6px;border-top:1px solid #e3caca;font-size:8.5pt;color:#6b7385;text-align:center}
+.pd .grid{grid-template-columns:repeat(3,1fr);gap:6px}
+.pd .stat,.pd .card{break-inside:avoid;border-radius:8px}
+.pd h2{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;color:#7a0000;margin:14px 0 6px}
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{background:#fff!important}
+  body>*:not(#printDoc){display:none!important}
+  #printDoc{display:block!important;font-size:10.5pt;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -282,6 +323,7 @@ function jobDetail(){
       <div class="mut" style="margin-top:6px">${esc(j.type||'')} · Başlangıç: ${fd(j.startDate)} · Bitiş: ${fd(j.endDate)}</div>
       ${j.notes?`<div style="margin-top:8px;white-space:pre-wrap">${esc(j.notes)}</div>`:''}</div>
     <div class="row" style="flex-wrap:wrap">
+      <button onclick="openCustomerForm('${j.id}')">📄 Müşteri formu (PDF)</button>
       ${j.status!=='Bitti'?`<button class="sec" onclick="finishJob('${j.id}')">✅ İşi bitir</button>`:''}
       <button class="sec" onclick="editJob('${j.id}')">✏️ Düzenle</button>
       <button class="red" onclick="delJob('${j.id}')">🗑 Sil</button></div>`;
@@ -482,18 +524,89 @@ function reportView(){
     ${cs.sort((a,b)=>b.c.profit-a.c.profit).map(x=>`<tr onclick="openJob('${x.j.id}')"><td>${esc(x.j.name)}<div class="mut">${esc(x.j.client)}</div></td><td class="r">${x.c.days||'—'}</td><td class="r">${x.c.areaTotal||'—'}</td><td class="r">${fmt(x.c.price)}</td><td class="r ${sign(x.c.profit)}"><b>${fmt(x.c.profit)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="mut">İş yok</td></tr>'}</table></div>
   <h2>Müşteri / Firmaya göre</h2><div class="card" style="overflow-x:auto"><table><tr><th>Müşteri</th><th class="r">İş</th><th class="r">Kar</th></tr>
     ${Object.entries(clients).sort((a,b)=>b[1].pr-a[1].pr).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r">${v.n}</td><td class="r ${sign(v.pr)}"><b>${fmt(v.pr)}</b></td></tr>`).join('')||'<tr><td colspan="3" class="mut">—</td></tr>'}</table></div>
-  <button class="sec" onclick="exportCSV()">📄 İş listesini Excel (CSV) olarak indir</button>`}
+  <button style="width:100%;margin-bottom:6px" onclick="printReport()">📄 Raporu PDF olarak kaydet</button>
+  <button class="ghost" style="width:100%" onclick="exportCSV()">Excel (CSV) olarak indir</button>`}
 function exportCSV(){
   const q=s=>`"${String(s??'').replace(/"/g,'""')}"`;
   const rows=[['İş','Müşteri','Tür','Durum','Başlangıç','Bitiş','Gün','Anlaşma','Tahsil','Kalan','İşçilik','Diğer gider','Kar','Saat','Anlaşma şekli','Birim fiyat (m²)','Yapılan m²','Ek iş bedeli']];
   S.jobs.forEach(j=>{const c=calc(j);rows.push([j.name,j.client,j.type,j.status,j.startDate,j.endDate,c.days,c.price,c.paid,c.left,c.labor,c.exp,c.profit,c.hours,j.priceType==='Metrekare'?'Metrekare':'Kabala',j.unitPrice||'',c.areaTotal||'',c.extra])});
   const b=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\n')],{type:'text/csv'});download(b,'isler-'+today()+'.csv')}
 
+/* ---------- PDF / Yazdırma ---------- */
+const FIRM_DEF={name:'Bayezid Airless',phone:'05059872856'};
+function getFirm(){
+  try{
+    if(!localStorage.getItem('firmv2')){localStorage.setItem('firm',JSON.stringify(FIRM_DEF));localStorage.setItem('firmv2','1')}
+    return{...FIRM_DEF,...JSON.parse(localStorage.getItem('firm')||'{}')}
+  }catch(_){return{...FIRM_DEF}}}
+let PDFURLS=[];
+function printHTML(html){
+  document.querySelectorAll('#printDoc').forEach(e=>e.remove());
+  const d=document.createElement('div');d.id='printDoc';d.innerHTML=html;document.body.appendChild(d);
+  const imgs=[...d.querySelectorAll('img')];
+  Promise.all(imgs.map(i=>i.decode?i.decode().catch(()=>{}):null)).then(()=>setTimeout(()=>window.print(),250))}
+function pdfHead(title,l1,l2){
+  return`<div class="pd-head"><img class="pd-logo" src="${LOGO}" alt="Bayezid"><div class="pd-title"><h1>${title}</h1><div>${l1}</div><div>${l2}</div></div></div><div class="pd-bar"></div>`}
+function openCustomerForm(id){
+  const j=S.jobs.find(x=>x.id===id);if(!j)return;const f=getFirm();
+  openModal(`<h1>Müşteri Formu (PDF)</h1>
+    <div class="mut">Müşteriye verilecek bilgi formu. İşçilik, gider ve kar bilgisi forma <b>konmaz</b>.</div>
+    <label>Firma telefonu (formun altında görünür)</label><input id="cfPhone" value="${esc(f.phone||'')}" inputmode="tel" placeholder="05xx xxx xx xx">
+    <label class="chk"><input type="checkbox" id="cfPay" checked> Ödeme geçmişini göster</label>
+    <label class="chk"><input type="checkbox" id="cfPhoto" checked> Önce/sonra fotoğraflarını ekle</label>
+    <label class="chk"><input type="checkbox" id="cfNote"> İş notlarını ekle</label>
+    <div class="mut">“Hazırla”ya basınca yazdırma ekranı açılır. Orada hedef olarak <b>PDF olarak kaydet</b>’i seç, sonra dosyayı WhatsApp ile paylaşabilirsin.</div>
+    <div class="row" style="margin-top:16px"><button class="sec" style="flex:1" onclick="closeModal()">Vazgeç</button><button style="flex:2" onclick="makeCustomerForm('${id}')">Hazırla</button></div>`)}
+async function makeCustomerForm(id){
+  const j=S.jobs.find(x=>x.id===id);if(!j)return;
+  const o={pay:$('#cfPay').checked,photo:$('#cfPhoto').checked,note:$('#cfNote').checked};
+  const f={...getFirm(),phone:$('#cfPhone').value.trim()};localStorage.setItem('firm',JSON.stringify(f));
+  let ph=[];
+  if(o.photo){PDFURLS.forEach(URL.revokeObjectURL);PDFURLS=[];
+    const order={Önce:0,Sonra:1,Diğer:2};
+    ph=(await req(tx('photos').index('jobId').getAll(id))).sort((a,b)=>(order[a.kind]-order[b.kind])||a.date.localeCompare(b.date))
+      .map(p=>{const u=URL.createObjectURL(p.blob);PDFURLS.push(u);return{u,kind:p.kind}})}
+  closeModal();
+  const html=customerFormHTML(j,o,f,ph);
+  setTimeout(()=>printHTML(html),350)}
+function customerFormHTML(j,o,f,ph){
+  const c=calc(j),mj=j.priceType==='Metrekare';
+  const xs=c.xs.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const ps=c.pay.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const no='BYZ-'+(j.created||today()).replace(/-/g,'')+'-'+String(j.id).slice(-3).toUpperCase();
+  const durum=j.status==='Bitti'?'Tamamlandı':j.status;
+  const rows=[`<tr><td>${esc(j.name)}<div style="color:#6b7385;font-size:9pt">${mj?'Metrekare anlaşması':'Kabala anlaşma'}</div></td><td class="r">${mj?c.areaUsed+' m²':'1'}</td><td class="r">${mj?fmt(j.unitPrice):'—'}</td><td class="r">${fmt(c.base)}</td></tr>`,
+    ...xs.map(e=>`<tr><td>Ek iş: ${esc(e.title)}${e.note?`<div style="color:#6b7385;font-size:9pt">${esc(e.note)}</div>`:''}</td><td class="r">${e.area?e.area+' m²':'1'}</td><td class="r">${e.area&&e.unit?fmt(e.unit):'—'}</td><td class="r">${fmt(e.amount)}</td></tr>`)].join('');
+  const due=c.left;
+  return`<div class="pd">
+  ${pdfHead('İŞ BİLGİ FORMU','Form No: '+no,'Düzenleme tarihi: '+fd(today()))}
+  <div class="pd-cols">
+    <section><h3>Müşteri</h3><dl><dt>Ad / Firma</dt><dd>${esc(j.client)}</dd>${j.phone?`<dt>Telefon</dt><dd>${esc(j.phone)}</dd>`:''}${j.address?`<dt>Adres</dt><dd>${esc(j.address)}</dd>`:''}</dl></section>
+    <section><h3>İş Bilgileri</h3><dl><dt>İş</dt><dd>${esc(j.name)}</dd>${j.type?`<dt>Tür</dt><dd>${esc(j.type)}</dd>`:''}<dt>Başlangıç</dt><dd>${fd(j.startDate)}</dd><dt>Bitiş</dt><dd>${j.endDate?fd(j.endDate):'—'}</dd>${c.days?`<dt>Süre</dt><dd>${c.days} gün</dd>`:''}<dt>Durum</dt><dd>${esc(durum)}</dd>${c.areaTotal?`<dt>Yapılan alan</dt><dd>${c.areaTotal} m²</dd>`:''}</dl></section>
+  </div>
+  <h3>İş Bedeli</h3>
+  <table><tr><th>Açıklama</th><th class="r">Miktar</th><th class="r">Birim fiyat</th><th class="r">Tutar</th></tr>${rows}</table>
+  ${o.pay?`<h3>Ödemeler</h3><table><tr><th>Tarih</th><th>Açıklama</th><th class="r">Tutar</th></tr>${ps.map(p=>`<tr><td>${fd(p.date)}</td><td>${esc(p.note||'Ödeme')}</td><td class="r">${fmt(p.amount)}</td></tr>`).join('')||'<tr><td colspan="3" style="color:#6b7385">Henüz ödeme alınmadı.</td></tr>'}</table>`:''}
+  <div class="pd-tot"><table>
+    <tr><td>Toplam iş bedeli</td><td class="r"><b>${fmt(c.price)}</b></td></tr>
+    <tr><td>Alınan ödeme</td><td class="r"><b>${fmt(c.paid)}</b></td></tr>
+    <tr class="${due>0?'pd-due':'pd-ok'}"><td>${due>0?'Kalan bakiye':due<0?'Fazla ödeme':'Ödeme tamamlandı'}</td><td class="r">${due===0?'✓':fmt(Math.abs(due))}</td></tr>
+  </table></div>
+  ${o.note&&j.notes?`<h3>Notlar</h3><div class="pd-note">${esc(j.notes)}</div>`:''}
+  ${ph.length?`<h3>Fotoğraflar</h3><div class="pd-ph">${ph.map(p=>`<figure><img src="${p.u}"><figcaption>${esc(p.kind)}</figcaption></figure>`).join('')}</div>`:''}
+  <div class="pd-foot">${esc(f.name||'Bayezid Airless')}${f.phone?' · '+esc(f.phone):''} · Bu form bilgilendirme amaçlıdır.</div>
+  </div>`}
+function printReport(){
+  const tmp=document.createElement('div');tmp.innerHTML=reportView();
+  tmp.querySelectorAll('.tabs,button,h1').forEach(e=>e.remove());
+  const lbl={all:'Tüm zamanlar',year:'Bu yıl',month:'Bu ay'}[V.period];
+  printHTML(`<div class="pd">${pdfHead('İŞ RAPORU',lbl,'Tarih: '+fd(today()))}${tmp.innerHTML}<div class="pd-foot">İç kullanım içindir, müşteriye verilmez.</div></div>`)}
+
 /* ---------- Yedek ---------- */
 function download(b,name){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
 const b2d=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
 async function makeBackup(){
-  const o={app:'isdefterim',v:1,date:new Date().toISOString()};
+  const o={app:'isdefterim',v:1,date:new Date().toISOString(),settings:{firm:getFirm()}};
   for(const s of STORES.filter(x=>x!=='photos'))o[s]=await all(s);
   o.photos=await Promise.all((await all('photos')).map(async p=>({...p,blob:await b2d(p.blob)})));
   return new Blob([JSON.stringify(o)],{type:'application/json'})}
@@ -512,6 +625,7 @@ $('#fileImport').addEventListener('change',async e=>{
     for(const s of STORES)await clr(s);
     for(const s of STORES.filter(x=>x!=='photos'))for(const r of o[s]||[])await put(s,r);
     for(const p of o.photos||[])await put('photos',{...p,blob:await (await fetch(p.blob)).blob()});
+    if(o.settings&&o.settings.firm)localStorage.setItem('firm',JSON.stringify(o.settings.firm));
     await load();V.jobId=null;V.tab='jobs';render();toast('Yedek yüklendi')
   }catch(_){toast('Bu dosya geçerli bir yedek değil')}});
 function backupView(){
