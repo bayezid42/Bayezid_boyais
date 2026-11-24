@@ -121,6 +121,13 @@ input[type=checkbox]{width:22px;height:22px;flex:none;accent-color:#7a0000;paddi
   body>*:not(#printDoc){display:none!important}
   #printDoc{display:block!important;font-size:10.5pt;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+.sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sug .l{width:100%;font-size:12px;color:var(--mut)}
+.sug button{background:#f6e6e6;color:var(--pri);padding:8px 13px;border-radius:99px;font-size:14px;font-weight:600}
+.sug small{font-weight:500;opacity:.7}
+.nosel,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select{-webkit-user-select:text;user-select:text}
+img{-webkit-touch-callout:none;-webkit-user-drag:none}
 </style>
 </head>
 <body>
@@ -154,6 +161,33 @@ const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOStr
 const fmt=n=>new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(Math.round((n||0)*100)/100)+' ₺';
 const num=v=>{const n=parseFloat(String(v??'').replace(/\./g,m=>String(v).includes(',')?'':'.').replace(',','.'));return isNaN(n)?0:n};
 const fd=d=>d?d.split('-').reverse().join('.'):'—';
+function fmtPhone(s){
+  s=String(s||'').trim();let d=s.replace(/\D/g,'');
+  if(d.startsWith('90')&&d.length>2)d='0'+d.slice(2);else if(d.startsWith('5'))d='0'+d;
+  if(!d.startsWith('0'))return s;
+  d=d.slice(0,11);
+  return [d.slice(0,4),d.slice(4,7),d.slice(7,9),d.slice(9,11)].filter(Boolean).join(' ')}
+const fmtNum=n=>new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(Number(n)||0);
+const numTR=v=>{const n=parseFloat(String(v??'').replace(/\./g,'').replace(',','.'));return isNaN(n)?0:n};
+function liveNum(el,e){
+  let v=el.value,pos=el.selectionStart??v.length;
+  if(e&&e.data==='.'&&pos>0&&v[pos-1]==='.'){
+    const had=v.includes(',');v=v.slice(0,pos-1)+(had?'':',')+v.slice(pos);if(had)pos--}
+  let sig=v.slice(0,pos).replace(/[^\d,]/g,'').length;
+  const c=v.replace(/[^\d,]/g,''),ci=c.indexOf(',');
+  let ip=ci<0?c:c.slice(0,ci);const dp=ci<0?null:c.slice(ci+1).replace(/,/g,'').slice(0,2);
+  ip=ip.replace(/^0+(?=\d)/,'');
+  if(ci===0&&ip===''){ip='0';sig++}
+  const out=ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(dp!==null?','+dp:'');
+  if(out!==el.value){el.value=out;let n=0,p=0;while(p<out.length&&n<sig){if(/[\d,]/.test(out[p]))n++;p++}try{el.setSelectionRange(p,p)}catch(_){}}}
+const telHref=s=>{const d=String(s||'').replace(/\D/g,'');return 'tel:'+(d.startsWith('0')?'+90'+d.slice(1):d)};
+const norm=s=>String(s||'').toLocaleLowerCase('tr').trim();
+function clientList(){
+  const m=new Map();
+  S.jobs.slice().sort((a,b)=>(a.startDate||a.created||'').localeCompare(b.startDate||b.created||'')).forEach(j=>{
+    const k=norm(j.client);if(!k)return;const e=m.get(k)||{n:0};
+    m.set(k,{name:j.client,phone:j.phone||e.phone||'',address:j.address||e.address||'',n:e.n+1,last:(j.startDate||j.created||'')})});
+  return [...m.values()].sort((a,b)=>b.last.localeCompare(a.last))}
 const sum=(a,f)=>a.reduce((t,x)=>t+(f(x)||0),0);
 const sign=n=>n>=0?'ok':'bad';
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2200)}
@@ -194,15 +228,17 @@ function openForm(title,fields,initial,onSave,after){
     if(x.t==='select')inp=`<select name="${x.k}">${x.opts.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
     else if(x.t==='area')inp=`<textarea name="${x.k}" rows="3">${esc(v)}</textarea>`;
     else if(x.t==='date')inp=`<input type="date" name="${x.k}" value="${esc(v)}">`;
-    else if(x.t==='num')inp=`<input name="${x.k}" inputmode="decimal" value="${v===''?'':esc(v)}" placeholder="0">`;
-    else inp=`<input name="${x.k}" value="${esc(v)}" ${x.list?`list="dl_${x.k}"`:''} ${x.tel?'type="tel"':''} autocomplete="off">${x.list?`<datalist id="dl_${x.k}">${x.list.map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`:''}`;
+    else if(x.t==='num')inp=`<input name="${x.k}" inputmode="decimal" data-num="1" autocomplete="off" value="${v===''||v==null?'':esc(fmtNum(v))}" placeholder="0">`;
+    else inp=`<input name="${x.k}" value="${esc(x.tel?fmtPhone(v):v)}" ${x.list?`list="dl_${x.k}"`:''} ${x.tel?'type="tel" inputmode="tel" placeholder="05xx xxx xx xx" maxlength="16"':''} autocomplete="off">${x.list?`<datalist id="dl_${x.k}">${x.list.map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`:''}`;
     return `<div class="fld" data-k="${x.k}"><label>${esc(x.l)}${x.req?' *':''}</label>${inp}${x.hint?`<div class="mut" style="margin-top:4px">${esc(x.hint)}</div>`:''}</div>`}).join('');
   openModal(`<h1>${esc(title)}</h1><form id="frm">${f}<div class="row" style="margin-top:18px"><button type="button" class="sec" style="flex:1" onclick="closeModal()">Vazgeç</button><button style="flex:2">Kaydet</button></div></form>`);
   const frm=$('#frm');
   frm.onsubmit=async e=>{e.preventDefault();const o={};
-    for(const x of fields){let v=frm.elements[x.k].value.trim();if(x.t==='num')v=num(v);
+    for(const x of fields){let v=frm.elements[x.k].value.trim();if(x.t==='num')v=numTR(v);
       if(x.req&&(v===''||v===0&&x.t==='num'&&x.nz)){toast(x.l+' boş olamaz');return}o[x.k]=v}
     await onSave(o);closeModal()};
+  frm.querySelectorAll('input[data-num]').forEach(i=>i.addEventListener('input',e=>liveNum(i,e)));
+  frm.querySelectorAll('input[type=tel]').forEach(i=>i.addEventListener('input',()=>{const v=fmtPhone(i.value);if(v!==i.value)i.value=v}));
   if(after)after(frm);
 }
 
@@ -262,7 +298,7 @@ function editJob(id){
   const j=id?S.jobs.find(x=>x.id===id):null;
   openForm(j?'İşi Düzenle':'Yeni İş',[
     {k:'name',l:'İş adı',req:1,hint:'Örn: Ahmet Bey daire boyası'},
-    {k:'client',l:'Müşteri / Firma',req:1,list:[...new Set(S.jobs.map(x=>x.client))]},
+    {k:'client',l:'Müşteri / Firma',req:1},
     {k:'phone',l:'Telefon',tel:1},
     {k:'address',l:'Adres'},
     {k:'type',l:'İş türü',t:'select',opts:TYPES},
@@ -271,24 +307,40 @@ function editJob(id){
     {k:'unitPrice',l:'m² birim fiyatı (₺ / m²)',t:'num'},
     {k:'area',l:'Yapılan m²',t:'num',hint:'İşte yapılan toplam metrekare. Fiyat bununla hesaplanır.'},
     {k:'startDate',l:'Başlangıç tarihi',t:'date',def:today()},
-    {k:'endDate',l:'Bitiş tarihi (bitmediyse boş bırak)',t:'date'},
-    {k:'status',l:'Durum',t:'select',opts:STATS},
     {k:'notes',l:'Notlar',t:'area'}
-  ],j,async v=>{const o={...(j||{}),...v,id:j?.id||uid(),created:j?.created||today()};
+  ],j,async v=>{const o={...(j||{}),...v,id:j?.id||uid(),created:j?.created||today(),status:j?.status||'Devam ediyor'};
     await put('jobs',o);await load();if(!j)V.jobId=o.id,V.jtab='ozet';render();toast('Kaydedildi')},
   frm=>{const sel=frm.elements.priceType;
     const tog=()=>{const m=sel.value==='Metrekare';
       frm.querySelectorAll('.fld').forEach(d=>{const k=d.dataset.k;
         if(k==='price')d.style.display=m?'none':'';
         if(k==='unitPrice'||k==='area')d.style.display=m?'':'none'})};
-    sel.onchange=tog;tog()});
+    sel.onchange=tog;tog();
+    const inp=frm.elements.client,box=document.createElement('div');box.className='sug';
+    inp.closest('.fld').appendChild(box);
+    const cl=clientList();
+    const show=()=>{const q=norm(inp.value);
+      const list=(q?cl.filter(c=>norm(c.name).includes(q)&&norm(c.name)!==q):cl).slice(0,6);
+      box.innerHTML=list.length?`<div class="l">${q?'Önerilenler':'Daha önce çalıştıkların'} · dokununca bilgileri gelir</div>`+list.map(c=>`<button type="button" data-i="${cl.indexOf(c)}">${esc(c.name)} <small>· ${c.n} iş</small></button>`).join(''):''};
+    box.onclick=e=>{const b=e.target.closest('button');if(!b)return;const c=cl[+b.dataset.i];if(!c)return;
+      inp.value=c.name;
+      if(c.phone)frm.elements.phone.value=fmtPhone(c.phone);
+      if(c.address)frm.elements.address.value=c.address;
+      show()};
+    inp.addEventListener('input',show);inp.addEventListener('focus',show);
+    if(!inp.value)show()});
 }
 async function delJob(id){
   if(!confirm('Bu iş ve ona bağlı tüm kayıtlar (çalışma, gider, ödeme, fotoğraf) silinsin mi? Geri alınamaz.'))return;
   for(const s of['logs','expenses','payments','extras'])for(const o of S[s].filter(x=>x.jobId===id))await del(s,o.id);
   for(const p of await req(tx('photos').index('jobId').getAll(id)))await del('photos',p.id);
   await del('jobs',id);await load();V.jobId=null;render();toast('Silindi')}
-async function finishJob(id){const j=S.jobs.find(x=>x.id===id);j.status='Bitti';if(!j.endDate)j.endDate=today();await put('jobs',j);await load();render();toast('İş bitti olarak işaretlendi')}
+function finishDlg(id){
+  const j=S.jobs.find(x=>x.id===id);if(!j)return;
+  openForm(j.status==='Bitti'?'Bitiş Tarihi':'İşi Bitir',[{k:'endDate',l:'Bitiş tarihi',t:'date',req:1}],{endDate:j.endDate||today()},
+    async v=>{j.status='Bitti';j.endDate=v.endDate;await put('jobs',j);await load();render();toast('İş bitti olarak işaretlendi')})}
+async function reopenJob(id){const j=S.jobs.find(x=>x.id===id);if(!j)return;j.status='Devam ediyor';j.endDate='';await put('jobs',j);await load();render();toast('İş yeniden açıldı')}
+async function cancelJob(id){const j=S.jobs.find(x=>x.id===id);if(!j||!confirm('Bu iş iptal edildi olarak işaretlensin mi? (Raporlara girmez, istediğin zaman tekrar açabilirsin.)'))return;j.status='İptal';await put('jobs',j);await load();render();toast('İş iptal edildi')}
 
 /* ---------- İş detayı ---------- */
 function jobDetail(){
@@ -318,14 +370,17 @@ function jobDetail(){
     </div>
     <div class="card" style="margin-top:10px"><div class="mut">Elde kalan para (tahsilat − gider)</div><div class="big ${sign(c.cash)}">${fmt(c.cash)}</div></div>
     <div class="card"><div><b>${esc(j.client)}</b></div>
-      ${j.phone?`<div>📞 <a href="tel:${esc(j.phone)}">${esc(j.phone)}</a></div>`:''}
+      ${j.phone?`<div>📞 <a href="${telHref(j.phone)}">${esc(fmtPhone(j.phone))}</a></div>`:''}
       ${j.address?`<div>📍 ${esc(j.address)}</div>`:''}
       <div class="mut" style="margin-top:6px">${esc(j.type||'')} · Başlangıç: ${fd(j.startDate)} · Bitiş: ${fd(j.endDate)}</div>
       ${j.notes?`<div style="margin-top:8px;white-space:pre-wrap">${esc(j.notes)}</div>`:''}</div>
     <div class="row" style="flex-wrap:wrap">
       <button onclick="openCustomerForm('${j.id}')">📄 Müşteri formu (PDF)</button>
-      ${j.status!=='Bitti'?`<button class="sec" onclick="finishJob('${j.id}')">✅ İşi bitir</button>`:''}
+      ${j.status==='Devam ediyor'?`<button class="sec" onclick="finishDlg('${j.id}')">✅ İşi bitir</button>`:''}
+      ${j.status==='Bitti'?`<button class="sec" onclick="finishDlg('${j.id}')">📅 Bitiş tarihi</button>`:''}
+      ${j.status!=='Devam ediyor'?`<button class="sec" onclick="reopenJob('${j.id}')">↩️ Tekrar aç</button>`:''}
       <button class="sec" onclick="editJob('${j.id}')">✏️ Düzenle</button>
+      ${j.status==='Devam ediyor'?`<button class="ghost" onclick="cancelJob('${j.id}')">🚫 İptal</button>`:''}
       <button class="red" onclick="delJob('${j.id}')">🗑 Sil</button></div>`;
   if(V.jtab==='calisma')inner=`
     <div class="card row sp"><div><div class="mut">Toplam</div><b>${c.hours} saat</b></div><div><div class="mut">İşçilik tutarı</div><b>${fmt(c.labor)}</b></div></div>
@@ -376,7 +431,7 @@ function editLog(id){
     if(!w){w={id:uid(),name:v.worker,rate:v.rate};await put('workers',w)}
     await put('logs',{...(l||{}),...v,id:l?.id||uid(),jobId:V.jobId});await load();render();toast('Kaydedildi')},
   frm=>{const w=frm.elements.worker,r=frm.elements.rate;
-    w.addEventListener('input',()=>{const m=S.workers.find(x=>x.name.toLowerCase()===w.value.trim().toLowerCase());if(m&&!num(r.value))r.value=m.rate||''})});
+    w.addEventListener('input',()=>{const m=S.workers.find(x=>x.name.toLowerCase()===w.value.trim().toLowerCase());if(m&&!numTR(r.value))r.value=m.rate?fmtNum(m.rate):''})});
 }
 function editExp(id){
   const e=id?S.expenses.find(x=>x.id===id):null;
@@ -551,7 +606,7 @@ function openCustomerForm(id){
   const j=S.jobs.find(x=>x.id===id);if(!j)return;const f=getFirm();
   openModal(`<h1>Müşteri Formu (PDF)</h1>
     <div class="mut">Müşteriye verilecek bilgi formu. İşçilik, gider ve kar bilgisi forma <b>konmaz</b>.</div>
-    <label>Firma telefonu (formun altında görünür)</label><input id="cfPhone" value="${esc(f.phone||'')}" inputmode="tel" placeholder="05xx xxx xx xx">
+    <label>Firma telefonu (formun altında görünür)</label><input id="cfPhone" value="${esc(fmtPhone(f.phone||''))}" inputmode="tel" maxlength="16" oninput="const v=fmtPhone(this.value);if(v!==this.value)this.value=v" placeholder="05xx xxx xx xx">
     <label class="chk"><input type="checkbox" id="cfPay" checked> Ödeme geçmişini göster</label>
     <label class="chk"><input type="checkbox" id="cfPhoto" checked> Önce/sonra fotoğraflarını ekle</label>
     <label class="chk"><input type="checkbox" id="cfNote"> İş notlarını ekle</label>
@@ -581,7 +636,7 @@ function customerFormHTML(j,o,f,ph){
   return`<div class="pd">
   ${pdfHead('İŞ BİLGİ FORMU','Form No: '+no,'Düzenleme tarihi: '+fd(today()))}
   <div class="pd-cols">
-    <section><h3>Müşteri</h3><dl><dt>Ad / Firma</dt><dd>${esc(j.client)}</dd>${j.phone?`<dt>Telefon</dt><dd>${esc(j.phone)}</dd>`:''}${j.address?`<dt>Adres</dt><dd>${esc(j.address)}</dd>`:''}</dl></section>
+    <section><h3>Müşteri</h3><dl><dt>Ad / Firma</dt><dd>${esc(j.client)}</dd>${j.phone?`<dt>Telefon</dt><dd>${esc(fmtPhone(j.phone))}</dd>`:''}${j.address?`<dt>Adres</dt><dd>${esc(j.address)}</dd>`:''}</dl></section>
     <section><h3>İş Bilgileri</h3><dl><dt>İş</dt><dd>${esc(j.name)}</dd>${j.type?`<dt>Tür</dt><dd>${esc(j.type)}</dd>`:''}<dt>Başlangıç</dt><dd>${fd(j.startDate)}</dd><dt>Bitiş</dt><dd>${j.endDate?fd(j.endDate):'—'}</dd>${c.days?`<dt>Süre</dt><dd>${c.days} gün</dd>`:''}<dt>Durum</dt><dd>${esc(durum)}</dd>${c.areaTotal?`<dt>Yapılan alan</dt><dd>${c.areaTotal} m²</dd>`:''}</dl></section>
   </div>
   <h3>İş Bedeli</h3>
@@ -594,7 +649,7 @@ function customerFormHTML(j,o,f,ph){
   </table></div>
   ${o.note&&j.notes?`<h3>Notlar</h3><div class="pd-note">${esc(j.notes)}</div>`:''}
   ${ph.length?`<h3>Fotoğraflar</h3><div class="pd-ph">${ph.map(p=>`<figure><img src="${p.u}"><figcaption>${esc(p.kind)}</figcaption></figure>`).join('')}</div>`:''}
-  <div class="pd-foot">${esc(f.name||'Bayezid Airless')}${f.phone?' · '+esc(f.phone):''} · Bu form bilgilendirme amaçlıdır.</div>
+  <div class="pd-foot">${esc(f.name||'Bayezid Airless')}${f.phone?' · '+esc(fmtPhone(f.phone)):''} · Bu form bilgilendirme amaçlıdır.</div>
   </div>`}
 function printReport(){
   const tmp=document.createElement('div');tmp.innerHTML=reportView();
